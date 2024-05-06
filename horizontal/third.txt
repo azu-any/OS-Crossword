@@ -1,0 +1,12 @@
+wait
+6
+3
+System call that stops the execution till the termination of any child process
+waitpid
+6
+3
+System call that stops the execution till the termination of a specific process
+await
+5
+3
+To wait for

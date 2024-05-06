@@ -1,0 +1,12 @@
+alarm
+4
+4
+System call that sends a SIGALRM signal
+lava
+4
+5
+Hot molten or semifluid rock erupted from a volcano
+java
+4
+5
+Object-oriented programming language

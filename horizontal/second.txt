@@ -1,0 +1,12 @@
+signal
+4
+0
+Communication between processes
+normal
+4
+0
+The usual, average, or typical state or condition
+formal
+4
+0
+Done in due or lawful form

@@ -1,0 +1,12 @@
+thread
+6
+6
+An execution unit in the process that shares memory
+talk
+6
+6
+To speak in order to give information or express ideas or feelings
+thunder
+6
+6
+A loud rumbling or crashing noise heard after a lightning flash

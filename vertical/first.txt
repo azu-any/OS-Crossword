@@ -1,0 +1,12 @@
+kill
+1
+5
+System call for sending any signal
+skill
+0
+5
+The ability to do something well
+skull
+0
+5
+The skeleton of a person's head
