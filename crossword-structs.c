@@ -17,15 +17,28 @@
 #include <sys/signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 int main() {
 
-	pid_t pid_A;
+	system("clear");
 
-	/*if ((pid_A = fork()) == 0) {
+	pid_t pid_A, pid_B;
 
-	}*/
+	if ((pid_A = fork()) == 0) {
+
+		if ((pid_B = fork()) == 0) {
+			printWelcome();
+			return 0;
+		}
+
+		waitpid(pid_B, NULL, 0);
+		printRules();
+		return 0;
+	}
+
+	waitpid(pid_A, NULL, 0);
 
 	char word_number_char;
 	int word_number;
@@ -40,7 +53,6 @@ int main() {
 	signal(SIGALRM, change_word_handler);
 	signal(SIGINT, sig_handler_sigint);
 	signal(SIGUSR1, sig_handler_stop_reading);
-	signal(SIGUSR2, sig_handler_clear_console);
 
 	// start counter to change words
 	pthread_t thread;
@@ -79,7 +91,7 @@ int main() {
 			k = 0;
 			for(int k=0; k<size; k++) {
 				if(direction == 'H') {
-					if(isdigit(crossword[row][col+k])) {
+					if(isdigit(crossword[row][col+k]) || crossword[row][col+k] == '*') {
 						printf("Letter %d: ", k+1);
 						char my_char = getchar();
 						fflush(stdin);
@@ -95,7 +107,7 @@ int main() {
 					}
 				} else {
 
-					if(isdigit(crossword[row+k][col])) {
+					if(isdigit(crossword[row+k][col]) || crossword[row+k][col] == '*') {
 						printf("Letter %d: ", k+1);
 						char my_char = getchar();
 						fflush(stdin);
@@ -115,10 +127,10 @@ int main() {
 				my_words[word_number].locked = 1;
 				guessed_words++;
 
-				kill(getpid(), SIGUSR2);
+				system("clear");
 
 				printf("\nYou guessed the word!\n");
-				printCrossword(crossword):
+				//printCrossword(crossword);
 
 				if (guessed_words == NO_WORDS) {
 					complete = 1;

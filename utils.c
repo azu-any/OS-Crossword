@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <sys/_pthread/_pthread_t.h>
 #include <sys/_types/_null.h>
 #include <sys/_types/_pid_t.h>
 #include <sys/signal.h>
@@ -52,11 +53,23 @@ char crossword[ROWS][COLS];
 char solvedCrossword[ROWS][COLS];
 struct words my_words[6];
 pthread_mutex_t mutex;
-pthread_cond_t cond_consumer, cond_producer;
+pthread_cond_t cond_readRule, cond_checkRule;
 int complete = 0, guessed_letters = 0, k = 0;
 
-#define NO_ITEMS 10
-int buffer = 0;
+#define NO_RULES 10
+int read_all_rules = 0, rule = 0, rule_counter = 0;
+char *rules[NO_RULES] = {
+							"1. In the crossword you will see a board with '-', '*', and numbers.",
+							"2. Each number represents a letter of a word.",
+							"3. A word is made up by the same number.",
+							"4. An intersection between words is written with '*'.",
+							"5. At the end of the crossword, the clues of the words are written.",
+							"6. You should enter a number between 1 and 6 according to the word you want to guess.",
+							"7. Once the word is selected, you should enter letter by letter the word",
+							"8. Look for the number of letter, since some letters will be already guessed, it won't be necessary to enter them again",
+							"9. Look out for the time! After some seconds, words will start to change.",
+							"10. Words can change in meaning and length, but the intersections will remain",
+						};
 
 
 // FUNCTION PROTOTYPES
@@ -72,43 +85,34 @@ void sig_handler_sigint(int signum);
 void change_word_handler(int signum);
 
 
-void* producer(void* arg)
-{
-    for ( int i=0; i<NO_ITEMS; i++ )
-    {
-        pthread_mutex_lock( &mutex );
-        while( buffer != 0 ) // Esperar hasta que el buffer esté libre
-        {
-            // Libera el mutex y espera a que se cumpla la condición (que llegue la señal)
-            pthread_cond_wait( &cond_producer, &mutex );
-        }
-        buffer = 1;
-        printf("Productor: escribí un dato en el buffer.\n");
+void* readRule(void* arg) {
+    for ( int i=0; i<NO_RULES; i++ ) {
 
-        // Notifica que hay elementos en el buffer
-        pthread_cond_signal( &cond_consumer );
+        pthread_mutex_lock( &mutex );
+        while( rule != 0 ) {
+            pthread_cond_wait( &cond_readRule, &mutex );
+        }
+        rule = 1;
+        printf("%s", rules[rule_counter]);
+        rule_counter++;
+
+        pthread_cond_signal( &cond_checkRule );
         pthread_mutex_unlock( &mutex );
     }
 
     pthread_exit( NULL );
 }
 
-void* consumer(void* arg)
-{
-    for ( int i=0; i<NO_ITEMS; i++ )
-    {
+void* checkRule(void* arg) {
+    for ( int i=0; i<NO_RULES; i++ ) {
         pthread_mutex_lock( &mutex );
-        // ---------- Región crítica
-        while (buffer == 0) // Esperar hasta que haya información en el buffer
-        {
-            // Libera el mutex y espera a que se cumpla la condición (que llegue la señal)
-            pthread_cond_wait( &cond_consumer, &mutex );
+        while (rule == 0) {
+            pthread_cond_wait( &cond_checkRule, &mutex );
         }
-        printf("Consumidor: leí un dato del buffer.\n");
-        buffer = 0;
+        getchar();
+        rule = 0;
 
-        // Avisa que el buffer está limpio.
-        pthread_cond_signal( &cond_producer );
+        pthread_cond_signal( &cond_readRule );
         pthread_mutex_unlock( &mutex );
 
     }
@@ -122,15 +126,32 @@ void* consumer(void* arg)
 void printWelcome() {
 	printf("*** WELCOME ***\n");
 	printf("\nThis is \"La casa de hojas\"\n");
-	printf("It's your turn to play!");
+	printf("It's your turn to play!\n");
 }
 
 
 void printRules() {
+	pthread_t thread[2];
+	pthread_cond_init( &cond_readRule, 0 );
+    pthread_cond_init( &cond_checkRule, 0 );
+
 	printf("\n***Rules***\n");
 	printf("Read carefully the rules of the game before playing\n");
+	printf("Press enter to continue and read all rules\n");
+	getchar();
 
+	pthread_create(&thread[0], NULL, readRule, NULL );
+	pthread_create(&thread[1], NULL, checkRule, NULL );
 
+	pthread_join(thread[0], NULL);
+    pthread_join(thread[1], NULL);
+
+    pthread_mutex_destroy( &mutex );
+    pthread_cond_destroy( &cond_readRule );
+    pthread_cond_destroy( &cond_checkRule );
+
+    system("clear");
+    printf("\nGOOD LUCK! Enjoy the game ;)\n");
 }
 
 
@@ -148,22 +169,16 @@ void printClues(struct words words[6]) {
 
 
 void printCrossword(char crossword[ROWS][COLS]) {
+
 	printf("\nCROSSWORD\n");
-	for (int i = 0; i < ROWS+1 ; i++) {
-		for (int j = 0; j < COLS+1; j++) {
-			if (i == 0 && j == 0) {
-				printf("\t");
-			} else if (i == 0) {
-				printf("%d\t", j);
-			} else if (j == 0) {
-				printf("%d\t", i);
-			} else {
-				printf("%c\t", crossword[i - 1][j - 1]);
-			}
+	for (int i = 0; i < ROWS; i++) {
+		for (int j = 0; j < COLS; j++) {
+			printf("%c\t", crossword[i][j]);
 		}
 		printf("\n");
-		}
+	}
 	printf("\n");
+
 }
 
 
@@ -183,7 +198,11 @@ void writeWord(words words, char crossword[ROWS][COLS], int hide) {
 	    		crossword[row][col + i] = word[i];
 			} else {
 				if(!isalpha(crossword[row][col+i])){
-					crossword[row][col + i] = hide_char;
+					if(isdigit(crossword[row][col+i])){
+						crossword[row][col + i] = '*';
+					} else {
+						crossword[row][col + i] = hide_char;
+					}
 				}
 			}
 		    i++;
@@ -194,7 +213,11 @@ void writeWord(words words, char crossword[ROWS][COLS], int hide) {
 		    	crossword[row + i][col] = word[i];
 			} else {
 				if(!isalpha(crossword[row + i][col])){
-					crossword[row + i][col] = hide_char;
+					if(isdigit(crossword[row+i][col])){
+						crossword[row+i][col] = '*';
+					} else {
+						crossword[row + i][col] = hide_char;
+					}
 				}
 			}
 		    i++;
@@ -297,6 +320,7 @@ void change_word_handler(int signum) {
 	printf("\nTe tardaste mucho :(\nUna palabra cambiará\n");
 
 	kill(getpid(), SIGUSR1);
+	kill(getpid(), SIGUSR2);
 
 	if (complete == 1){
 		return;
@@ -306,7 +330,6 @@ void change_word_handler(int signum) {
 	while(flag == 0) {
 
 		int number = rand() % (NO_WORDS) + 0;
-		printf("%d", number);
 
 		if (my_words[number].locked == 0) {
 			flag = 1;
@@ -328,7 +351,7 @@ void change_word_handler(int signum) {
 void sig_handler_sigint(int signum) {
 
 	while (1) {
-		printf("Are you sure you want to exit? [Y/n]");
+		printf("\nAre you sure you want to exit? [Y/n]");
 		char confirm = getchar();
 		fflush(stdin);
 
@@ -348,9 +371,4 @@ void sig_handler_sigint(int signum) {
 void sig_handler_stop_reading(int signum) {
 	k = 10;
 	guessed_letters = 0;
-}
-
-
-void sig_handler_clear_console(int signum) {
-	execl(const char *path, const char *arg0, ...)
 }
