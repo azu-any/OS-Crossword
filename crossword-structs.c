@@ -4,8 +4,6 @@
 // Last modified: 2024/04/21
 // This program creates a crossword puzzle.
 
-#include "thread_functions.c"
-#include "signal_handlers.c"
 #include "utils.c"
 #include <ctype.h>
 #include <errno.h>
