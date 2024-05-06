@@ -1,0 +1,12 @@
+fork
+1
+2
+System call for creating a new process
+walk
+1
+2
+To move or go on foot at a moderate pace or rate
+speak
+1
+1
+To express thoughts, opinions, or feelings orally

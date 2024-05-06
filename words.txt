@@ -1,6 +1,0 @@
-fork 1 2 walk 1 2 speak 1 1
-kill 1 5
-signal 4 0
-alarm 4 4
-wait 6 3
-thread 6 6
