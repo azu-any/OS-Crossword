@@ -5,15 +5,19 @@
 // Functions for crossword puzzle.
 
 
+#include <ctype.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
 #include <sys/_types/_null.h>
 #include <sys/_types/_pid_t.h>
+#include <sys/signal.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <pthread.h>
+#include <sys/types.h>
 #include "errors.c"
 
 // STRUCT DEFINITIONS
@@ -34,28 +38,101 @@ typedef struct words {
 } words;
 
 
+
+
+// CONSTANTS
+#define ROWS 15
+#define COLS 10
+#define NO_WORDS 6
+#define WAIT_TIME 45
+
+// GLOBAL VARIABLES
+
+char crossword[ROWS][COLS];
+char solvedCrossword[ROWS][COLS];
+struct words my_words[6];
+pthread_mutex_t mutex;
+pthread_cond_t cond_consumer, cond_producer;
+int complete = 0, guessed_letters = 0, k = 0;
+
+#define NO_ITEMS 10
+int buffer = 0;
+
+
 // FUNCTION PROTOTYPES
 
 void *increase_counter(void *args);
 void *defineWord(void *arg);
 void initializeWords();
 void printClues(struct words words[6]);
-void printCrossword(char crossword[15][10]);
-void writeWord(words words, char crossword[15][10], int hide);
-void updateCrossword(words words[], char crossword[15][10], char solvedCrossword[15][10]);
+void printCrossword(char crossword[ROWS][COLS]);
+void writeWord(words words, char crossword[ROWS][COLS], int hide);
+void updateCrossword(words words[], char crossword[ROWS][COLS], char solvedCrossword[ROWS][COLS]);
 void sig_handler_sigint(int signum);
 void change_word_handler(int signum);
 
 
-// GLOBAL VARIABLES
+void* producer(void* arg)
+{
+    for ( int i=0; i<NO_ITEMS; i++ )
+    {
+        pthread_mutex_lock( &mutex );
+        while( buffer != 0 ) // Esperar hasta que el buffer esté libre
+        {
+            // Libera el mutex y espera a que se cumpla la condición (que llegue la señal)
+            pthread_cond_wait( &cond_producer, &mutex );
+        }
+        buffer = 1;
+        printf("Productor: escribí un dato en el buffer.\n");
 
-char crossword[15][10];
-char solvedCrossword[15][10];
-struct words my_words[6];
-pthread_mutex_t mutex;
+        // Notifica que hay elementos en el buffer
+        pthread_cond_signal( &cond_consumer );
+        pthread_mutex_unlock( &mutex );
+    }
+
+    pthread_exit( NULL );
+}
+
+void* consumer(void* arg)
+{
+    for ( int i=0; i<NO_ITEMS; i++ )
+    {
+        pthread_mutex_lock( &mutex );
+        // ---------- Región crítica
+        while (buffer == 0) // Esperar hasta que haya información en el buffer
+        {
+            // Libera el mutex y espera a que se cumpla la condición (que llegue la señal)
+            pthread_cond_wait( &cond_consumer, &mutex );
+        }
+        printf("Consumidor: leí un dato del buffer.\n");
+        buffer = 0;
+
+        // Avisa que el buffer está limpio.
+        pthread_cond_signal( &cond_producer );
+        pthread_mutex_unlock( &mutex );
+
+    }
+
+    pthread_exit(NULL);
+}
 
 
 // UTILS FUNCTIONS
+
+void printWelcome() {
+	printf("*** WELCOME ***\n");
+	printf("\nThis is \"La casa de hojas\"\n");
+	printf("It's your turn to play!");
+}
+
+
+void printRules() {
+	printf("\n***Rules***\n");
+	printf("Read carefully the rules of the game before playing\n");
+
+
+}
+
 
 void printClues(struct words words[6]) {
 	printf("\nHORIZONTAL\n");
@@ -70,10 +147,10 @@ void printClues(struct words words[6]) {
 }
 
 
-void printCrossword(char crossword[15][10]) {
+void printCrossword(char crossword[ROWS][COLS]) {
 	printf("\nCROSSWORD\n");
-	for (int i = 0; i < 16; i++) {
-		for (int j = 0; j < 11; j++) {
+	for (int i = 0; i < ROWS+1 ; i++) {
+		for (int j = 0; j < COLS+1; j++) {
 			if (i == 0 && j == 0) {
 				printf("\t");
 			} else if (i == 0) {
@@ -90,7 +167,7 @@ void printCrossword(char crossword[15][10]) {
 }
 
 
-void writeWord(words words, char crossword[15][10], int hide) {
+void writeWord(words words, char crossword[ROWS][COLS], int hide) {
 	int i = 0;
 	int row = words.word[words.index].row;
 	int col = words.word[words.index].col;
@@ -105,7 +182,9 @@ void writeWord(words words, char crossword[15][10], int hide) {
 			if (hide == 0) {
 	    		crossword[row][col + i] = word[i];
 			} else {
-				crossword[row][col + i] = hide_char;
+				if(!isalpha(crossword[row][col+i])){
+					crossword[row][col + i] = hide_char;
+				}
 			}
 		    i++;
 	    }
@@ -114,7 +193,9 @@ void writeWord(words words, char crossword[15][10], int hide) {
 			if (hide == 0) {
 		    	crossword[row + i][col] = word[i];
 			} else {
-				crossword[row + i][col] = hide_char;
+				if(!isalpha(crossword[row + i][col])){
+					crossword[row + i][col] = hide_char;
+				}
 			}
 		    i++;
 	    }
@@ -122,17 +203,21 @@ void writeWord(words words, char crossword[15][10], int hide) {
 }
 
 
-void updateCrossword(words words[], char crossword[15][10], char solvedCrossword[15][10]) {
-	for (int i = 0; i < 15; i++) {
-		for (int j = 0; j < 10; j++) {
+void updateCrossword(words words[], char crossword[ROWS][COLS], char solvedCrossword[ROWS][COLS]) {
+	for (int i = 0; i < ROWS; i++) {
+		for (int j = 0; j < COLS; j++) {
 			crossword[i][j] = '-';
 			solvedCrossword[i][j] = '-';
 		}
 	}
 
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < NO_WORDS; i++) {
 	    writeWord(words[i], solvedCrossword, 0);
-		writeWord(words[i], crossword, i+1);
+		if (words[i].locked == 0) {
+			writeWord(words[i], crossword, i+1);
+		} else {
+			writeWord(words[i], crossword, 0);
+		}
 	}
 }
 
@@ -145,7 +230,7 @@ void *increase_counter(void *args) {
     counter++;
     sleep(1);
 
-    if (counter % 45 == 0)
+    if (counter % WAIT_TIME == 0)
       alarm(1);
   }
   pthread_exit(NULL);
@@ -156,7 +241,7 @@ void *defineWord(void *arg) {
 	pthread_mutex_lock( &mutex );
 
     int i = *(int *)arg;
-    char *words_file[6] = { "horizontal/first.txt",
+    char *words_file[NO_WORDS] = { "horizontal/first.txt",
                             "horizontal/second.txt",
                             "horizontal/third.txt",
                             "vertical/first.txt",
@@ -188,10 +273,10 @@ void *defineWord(void *arg) {
 
 
 void initializeWords() {
-    pthread_t threads[6];
+    pthread_t threads[NO_WORDS];
     pthread_mutex_init( &mutex, 0 );
 
-    int indices[6];
+    int indices[NO_WORDS];
     for (int i = 0; i < 6; i++) {
         indices[i] = i;
         pthread_create(&threads[i], NULL, defineWord, &indices[i]);
@@ -211,10 +296,16 @@ void initializeWords() {
 void change_word_handler(int signum) {
 	printf("\nTe tardaste mucho :(\nUna palabra cambiará\n");
 
+	kill(getpid(), SIGUSR1);
+
+	if (complete == 1){
+		return;
+	}
+
 	int flag = 0;
 	while(flag == 0) {
 
-		int number = rand() % (5 + 1 - 0) + 0;
+		int number = rand() % (NO_WORDS) + 0;
 		printf("%d", number);
 
 		if (my_words[number].locked == 0) {
@@ -251,4 +342,15 @@ void sig_handler_sigint(int signum) {
 
 		printf("\nYour answer could not be processed. Please try again\n");
 	}
+}
+
+
+void sig_handler_stop_reading(int signum) {
+	k = 10;
+	guessed_letters = 0;
+}
+
+
+void sig_handler_clear_console(int signum) {
+	execl(const char *path, const char *arg0, ...)
 }
