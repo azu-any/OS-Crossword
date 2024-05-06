@@ -7,6 +7,6 @@ waitpid
 3
 System call that stops the execution till the termination of a specific process
 await
-5
-3
+6
+2
 To wait for
