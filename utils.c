@@ -54,6 +54,7 @@ typedef struct words {
 char crossword[ROWS][COLS];
 char solvedCrossword[ROWS][COLS];
 struct words my_words[6];
+pthread_t thread[2];
 pthread_mutex_t mutex;
 pthread_cond_t cond_readRule, cond_checkRule;
 pthread_cond_t cond_readLetter, cond_checkLetter;
@@ -114,7 +115,7 @@ void printCongratulations() {
 
 void printRules() {
 
-	pthread_t thread[2];
+	//pthread_t thread[2];
 	pthread_cond_init( &cond_readRule, 0 );
     pthread_cond_init( &cond_checkRule, 0 );
 
@@ -274,7 +275,7 @@ void initializeWords() {
 
 void readInput(int index){
 
-	pthread_t thread[2];
+	//pthread_t thread[2];
 	pthread_cond_init( &cond_readLetter, 0 );
     pthread_cond_init( &cond_checkLetter, 0 );
 
@@ -472,6 +473,7 @@ void *defineWord(void *arg) {
 		my_words[i].word[1].word, &my_words[i].word[1].row, &my_words[i].word[1].col, my_words[i].word[1].definition,
 		my_words[i].word[2].word, &my_words[i].word[2].row, &my_words[i].word[2].col, my_words[i].word[2].definition);
 
+
     close(fd);
     pthread_mutex_unlock( &mutex );
 	pthread_exit(NULL);
@@ -570,6 +572,8 @@ void change_word_handler(int signum) {
 
 // In case, user enters CTRL + C
 void sig_handler_sigint(int signum) {
+
+	scan = guessed_letters = 0;
 
 	while (1) {
 		printf("\nAre you sure you want to exit? [Y/n] ");
