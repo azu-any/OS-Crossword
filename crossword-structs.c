@@ -51,8 +51,6 @@ int main() {
 	// wait for signals
 	signal(SIGALRM, change_word_handler);
 	signal(SIGINT, sig_handler_sigint);
-	//signal(SIGUSR1, sig_handler_stop_reading);
-    //signal(SIGUSR2, sig_handler_stop);
 
 	// wait for user to read all rules
 	waitpid(pid_A, NULL, 0);
