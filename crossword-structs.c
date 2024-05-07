@@ -1,7 +1,7 @@
 // Azuany Mila Ceron - 177068
 // Final Project - Operating Systems
 // Spring 2024
-// Last modified: 2024/04/21
+// Last modified: 2024/05/06
 // This program creates a crossword puzzle.
 
 #include "utils.c"
@@ -22,8 +22,6 @@
 
 int main() {
 
-	system("clear");
-
 	pid_t pid_A, pid_B;
 
 	if ((pid_A = fork()) == 0) {
@@ -38,24 +36,24 @@ int main() {
 		return 0;
 	}
 
-	waitpid(pid_A, NULL, 0);
-
 	char word_number_char;
 	int word_number;
-	int word_selected = 0;
-	int guessed_words = 0;
+	int word_selected = 0, guessed_words = 0;
+	pthread_t thread;
 
-	// Initialize crosswords
+	// initialize crosswords
 	initializeWords();
 	updateCrossword(my_words, crossword, solvedCrossword);
 
-	// Wait for signals
+	// wait for signals
 	signal(SIGALRM, change_word_handler);
 	signal(SIGINT, sig_handler_sigint);
-	signal(SIGUSR1, sig_handler_stop_reading);
+	//signal(SIGUSR1, sig_handler_stop_reading);
+    //signal(SIGUSR2, sig_handler_stop);
 
+	// wait for user to read all rules
+	waitpid(pid_A, NULL, 0);
 	// start counter to change words
-	pthread_t thread;
 	pthread_create(&thread, NULL, increase_counter, NULL);
 
 	while(1) {
@@ -78,50 +76,12 @@ int main() {
 				continue;
 			}
 
-			char *definition = my_words[word_number].word[my_words[word_number].index].definition;
 			char *word = my_words[word_number].word[my_words[word_number].index].word;
-			int row = my_words[word_number].word[my_words[word_number].index].row;
-			int col = my_words[word_number].word[my_words[word_number].index].col;
-			char direction = my_words[word_number].direction;
 			int size = strlen(word);
-
-			printf("\nGuess the word %d with %d letters: %s\n", word_number + 1, size, definition);
-
+			scan = 1;
 			guessed_letters = 0;
-			k = 0;
-			for(int k=0; k<size; k++) {
-				if(direction == 'H') {
-					if(isdigit(crossword[row][col+k]) || crossword[row][col+k] == '*') {
-						printf("Letter %d: ", k+1);
-						char my_char = getchar();
-						fflush(stdin);
 
-						if(my_char == solvedCrossword[row][col+k]){
-							guessed_letters++;
-							crossword[row][col+k] = my_char;
-							printCrossword(crossword);
-						}
-
-					} else {
-						guessed_letters++;
-					}
-				} else {
-
-					if(isdigit(crossword[row+k][col]) || crossword[row+k][col] == '*') {
-						printf("Letter %d: ", k+1);
-						char my_char = getchar();
-						fflush(stdin);
-
-						if(my_char == solvedCrossword[row+k][col]) {
-								guessed_letters++;
-								crossword[row+k][col] = my_char;
-								printCrossword(crossword);
-						}
-					} else {
-						guessed_letters++;
-					}
-				}
-			}
+			readInput(word_number); // call thread functions of for reading and checking letters
 
 			if(guessed_letters == size){
 				my_words[word_number].locked = 1;
@@ -130,7 +90,6 @@ int main() {
 				system("clear");
 
 				printf("\nYou guessed the word!\n");
-				//printCrossword(crossword);
 
 				if (guessed_words == NO_WORDS) {
 					complete = 1;
@@ -143,9 +102,7 @@ int main() {
 		}
 	}
 
-	if(complete == 1) {
-		printf("\nCongratualtions you finished the crossword\n");
-	}
+	printCongratulations();
 
 	return 0;
 }
