@@ -23,15 +23,18 @@
 int main() {
 
 	pid_t pid_A, pid_B;
+	int status = 1;
 
 	if ((pid_A = fork()) == 0) {
 
-		if ((pid_B = fork()) == 0) {
-			printWelcome();
-			return 0;
-		}
+		while(status == 1) {
+			if ((pid_B = fork()) == 0) {
+				printWelcome();
+				return 0;
+			}
 
-		waitpid(pid_B, NULL, 0);
+			waitpid(pid_B, &status, 0);
+		}
 		printRules();
 		return 0;
 	}

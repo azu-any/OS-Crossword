@@ -21,6 +21,7 @@
 #include <sys/types.h>
 #include "errors.c"
 
+
 // STRUCT DEFINITIONS
 
 typedef struct word {
@@ -59,7 +60,8 @@ pthread_cond_t cond_readLetter, cond_checkLetter;
 int complete = 0, guessed_letters = 0, counter = 0;
 int rule = 0, rule_counter = 0, buffer = 0;
 int scan = 1;
- char my_char;
+char my_char;
+
 
 // FUNCTION PROTOTYPES
 
@@ -76,7 +78,7 @@ void* readRule(void* arg);
 void* checkRule(void* arg);
 void* readLetter(void* arg);
 void* checkLetter(void* arg);
-void sig_handler_stop(int signum) ;
+void sig_handler_stop(int signum);
 
 
 // UTILS FUNCTIONS
@@ -104,6 +106,8 @@ void printCongratulations() {
 	printf("*** CONGRATULATIONS ***\n");
 	printf("***********************\n");
 	printf("You finished the crossword!\n");
+
+	printCrossword(crossword);
 
 }
 
@@ -156,7 +160,26 @@ void printCrossword(char crossword[ROWS][COLS]) {
 	printf("\nCROSSWORD\n");
 	for (int i = 0; i < ROWS; i++) {
 		for (int j = 0; j < COLS; j++) {
-			printf("%c\t", crossword[i][j]);
+			if(crossword[i][j] == '1'){
+				printf("\033[41m%c\t", crossword[i][j]);
+			} else if(crossword[i][j] == '2'){
+				printf("\033[42m%c\t", crossword[i][j]);
+			} else if(crossword[i][j] == '3'){
+				printf("\033[43m%c\t", crossword[i][j]);
+			} else if(crossword[i][j] == '4'){
+				printf("\033[44m%c\t", crossword[i][j]);
+			} else if(crossword[i][j] == '5'){
+				printf("\033[45m%c\t", crossword[i][j]);
+			} else if(crossword[i][j] == '6'){
+				printf("\033[46m%c\t", crossword[i][j]);
+			} else if(crossword[i][j] == '*'){
+				printf("\033[40m%c\t", crossword[i][j]);
+			} else if(crossword[i][j] != '-'){
+				printf("\033[47m\033[30m%c\t\033[37m", crossword[i][j]);
+			} else {
+				printf("\033[0m%c\t", crossword[i][j]);
+			}
+
 		}
 		printf("\n");
 	}
@@ -278,6 +301,8 @@ void readInput(int index){
 
 void* readLetter(void* arg) {
 
+	signal(SIGINT, sig_handler_sigint);
+
 	int index = *(int *)arg;
 	char *word = my_words[index].word[my_words[index].index].word;
 	int row = my_words[index].word[my_words[index].index].row;
@@ -341,6 +366,7 @@ void* readLetter(void* arg) {
 void* checkLetter(void* arg) {
 
 	int index = *(int *)arg;
+	signal(SIGINT, sig_handler_sigint);
 
 	char *word = my_words[index].word[my_words[index].index].word;
 	int row = my_words[index].word[my_words[index].index].row;
@@ -374,6 +400,7 @@ void* checkLetter(void* arg) {
 					if(my_char == solvedCrossword[row][col+i]){
 						guessed_letters++;
 						crossword[row][col+i] = my_char;
+						system("clear");
 						printCrossword(crossword);
 					}
 				}
@@ -382,6 +409,7 @@ void* checkLetter(void* arg) {
 					if(my_char == solvedCrossword[row+i][col]) {
 						guessed_letters++;
 						crossword[row+i][col] = my_char;
+						system("clear");
 						printCrossword(crossword);
 					}
 				}
@@ -536,8 +564,6 @@ void change_word_handler(int signum) {
 	}
 
 	printf("\n Click ENTER to continue \n");
-	//printCrossword(crossword);
-	//printClues(my_words);
 
 }
 
