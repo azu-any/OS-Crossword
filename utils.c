@@ -39,13 +39,14 @@ typedef struct words {
 } words;
 
 
-
-
 // CONSTANTS
+
 #define ROWS 15
 #define COLS 10
 #define NO_WORDS 6
 #define WAIT_TIME 45
+#define NO_RULES 12
+
 
 // GLOBAL VARIABLES
 
@@ -54,23 +55,11 @@ char solvedCrossword[ROWS][COLS];
 struct words my_words[6];
 pthread_mutex_t mutex;
 pthread_cond_t cond_readRule, cond_checkRule;
-int complete = 0, guessed_letters = 0, k = 0;
-
-#define NO_RULES 10
-int read_all_rules = 0, rule = 0, rule_counter = 0;
-char *rules[NO_RULES] = {
-							"1. In the crossword you will see a board with '-', '*', and numbers.",
-							"2. Each number represents a letter of a word.",
-							"3. A word is made up by the same number.",
-							"4. An intersection between words is written with '*'.",
-							"5. At the end of the crossword, the clues of the words are written.",
-							"6. You should enter a number between 1 and 6 according to the word you want to guess.",
-							"7. Once the word is selected, you should enter letter by letter the word",
-							"8. Look for the number of letter, since some letters will be already guessed, it won't be necessary to enter them again",
-							"9. Look out for the time! After some seconds, words will start to change.",
-							"10. Words can change in meaning and length, but the intersections will remain",
-						};
-
+pthread_cond_t cond_readLetter, cond_checkLetter;
+int complete = 0, guessed_letters = 0, counter = 0;
+int rule = 0, rule_counter = 0, buffer = 0;
+int scan = 1;
+ char my_char;
 
 // FUNCTION PROTOTYPES
 
@@ -83,62 +72,55 @@ void writeWord(words words, char crossword[ROWS][COLS], int hide);
 void updateCrossword(words words[], char crossword[ROWS][COLS], char solvedCrossword[ROWS][COLS]);
 void sig_handler_sigint(int signum);
 void change_word_handler(int signum);
-
-
-void* readRule(void* arg) {
-    for ( int i=0; i<NO_RULES; i++ ) {
-
-        pthread_mutex_lock( &mutex );
-        while( rule != 0 ) {
-            pthread_cond_wait( &cond_readRule, &mutex );
-        }
-        rule = 1;
-        printf("%s", rules[rule_counter]);
-        rule_counter++;
-
-        pthread_cond_signal( &cond_checkRule );
-        pthread_mutex_unlock( &mutex );
-    }
-
-    pthread_exit( NULL );
-}
-
-void* checkRule(void* arg) {
-    for ( int i=0; i<NO_RULES; i++ ) {
-        pthread_mutex_lock( &mutex );
-        while (rule == 0) {
-            pthread_cond_wait( &cond_checkRule, &mutex );
-        }
-        getchar();
-        rule = 0;
-
-        pthread_cond_signal( &cond_readRule );
-        pthread_mutex_unlock( &mutex );
-
-    }
-
-    pthread_exit(NULL);
-}
+void* readRule(void* arg);
+void* checkRule(void* arg);
+void* readLetter(void* arg);
+void* checkLetter(void* arg);
+void sig_handler_stop(int signum) ;
 
 
 // UTILS FUNCTIONS
 
 void printWelcome() {
+
+	system("clear"); // to clear screen
+
+	printf("\n***************\n");
 	printf("*** WELCOME ***\n");
+	printf("***************\n");
 	printf("\nThis is \"La casa de hojas\"\n");
-	printf("It's your turn to play!\n");
+	printf("\nIt's your turn to play!\n");
+	printf("\nPress enter to continue\n");
+
+	getchar();
+	fflush(stdin);
+
+}
+
+
+void printCongratulations() {
+
+	printf("\n***********************\n");
+	printf("*** CONGRATULATIONS ***\n");
+	printf("***********************\n");
+	printf("You finished the crossword!\n");
+
 }
 
 
 void printRules() {
+
 	pthread_t thread[2];
 	pthread_cond_init( &cond_readRule, 0 );
     pthread_cond_init( &cond_checkRule, 0 );
 
-	printf("\n***Rules***\n");
+    system("clear"); // to clear screen
+
+	printf("\n*** RULES ***\n");
 	printf("Read carefully the rules of the game before playing\n");
 	printf("Press enter to continue and read all rules\n");
 	getchar();
+	fflush(stdin);
 
 	pthread_create(&thread[0], NULL, readRule, NULL );
 	pthread_create(&thread[1], NULL, checkRule, NULL );
@@ -156,15 +138,16 @@ void printRules() {
 
 
 void printClues(struct words words[6]) {
+
 	printf("\nHORIZONTAL\n");
-	printf("1. %s\n", words[0].word[words[0].index].definition);
-	printf("2. %s\n", words[1].word[words[1].index].definition);
-	printf("3. %s\n", words[2].word[words[2].index].definition);
+	for(int i=0; i<3; i++) {
+		printf("%d. %s\n", i+1, words[i].word[words[i].index].definition);
+	}
 
 	printf("\nVERTICAL\n");
-	printf("4. %s\n", words[3].word[words[3].index].definition);
-	printf("5. %s\n", words[4].word[words[4].index].definition);
-	printf("6. %s\n", words[5].word[words[5].index].definition);
+	for(int i=3; i<6; i++) {
+		printf("%d. %s\n", i+1, words[i].word[words[i].index].definition);
+	}
 }
 
 
@@ -183,6 +166,7 @@ void printCrossword(char crossword[ROWS][COLS]) {
 
 
 void writeWord(words words, char crossword[ROWS][COLS], int hide) {
+
 	int i = 0;
 	int row = words.word[words.index].row;
 	int col = words.word[words.index].col;
@@ -227,6 +211,7 @@ void writeWord(words words, char crossword[ROWS][COLS], int hide) {
 
 
 void updateCrossword(words words[], char crossword[ROWS][COLS], char solvedCrossword[ROWS][COLS]) {
+
 	for (int i = 0; i < ROWS; i++) {
 		for (int j = 0; j < COLS; j++) {
 			crossword[i][j] = '-';
@@ -245,19 +230,189 @@ void updateCrossword(words words[], char crossword[ROWS][COLS], char solvedCross
 }
 
 
+void initializeWords() {
+    pthread_t threads[NO_WORDS];
+    pthread_mutex_init( &mutex, 0 );
+
+    int indices[NO_WORDS];
+    for (int i = 0; i < 6; i++) {
+        indices[i] = i;
+        pthread_create(&threads[i], NULL, defineWord, &indices[i]);
+    }
+
+    for (int i = 0; i < 6; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    pthread_mutex_destroy( &mutex );
+    return;
+}
+
+
+void readInput(int index){
+
+	pthread_t thread[2];
+	pthread_cond_init( &cond_readLetter, 0 );
+    pthread_cond_init( &cond_checkLetter, 0 );
+
+    system("clear"); // to clear screen
+    char *word = my_words[index].word[my_words[index].index].word;
+    int size = strlen(word);
+
+    printCrossword(crossword);
+
+	pthread_create(&thread[0], NULL, readLetter, (void *)&index);
+	pthread_create(&thread[1], NULL, checkLetter, (void *)&index );
+
+	pthread_join(thread[0], NULL);
+    pthread_join(thread[1], NULL);
+
+    pthread_mutex_destroy( &mutex );
+    pthread_cond_destroy( &cond_readLetter );
+    pthread_cond_destroy( &cond_checkLetter );
+
+}
+
+
 // THREAD FUNCTIONS
 
-int counter = 0;
-void *increase_counter(void *args) {
-  while (1) {
-    counter++;
-    sleep(1);
+void* readLetter(void* arg) {
 
-    if (counter % WAIT_TIME == 0)
-      alarm(1);
-  }
-  pthread_exit(NULL);
+	int index = *(int *)arg;
+	char *word = my_words[index].word[my_words[index].index].word;
+	int row = my_words[index].word[my_words[index].index].row;
+	int col = my_words[index].word[my_words[index].index].col;
+	char direction = my_words[index].direction;
+	char *definition = my_words[index].word[my_words[index].index].definition;
+	int size = strlen(word);
+	buffer = 0;
+
+    for ( int i=0; i<size; i++ ) {
+
+        pthread_mutex_lock( &mutex );
+        while( buffer != 0 ) {
+            pthread_cond_wait( &cond_readLetter, &mutex );
+        }
+        if(scan == 1) {
+	        if(direction == 'H') {
+				if(!(isdigit(crossword[row][col+i]) || crossword[row][col+i] == '*')) {
+					buffer = 1;
+					continue;
+				}
+			} else {
+				if(!(isdigit(crossword[row+i][col]) || crossword[row+i][col] == '*')) {
+					buffer = 1;
+					continue;
+				}
+			}
+
+			printf("\nGuess the word %d with %d letters: %s\n", index + 1, size, definition);
+	        printf("Letter %d: ", i+1);
+	        while ((my_char = getchar()) == '\n') {
+	       		if(scan == 0){
+	         		buffer = 1;
+					pthread_cond_signal( &cond_checkLetter );
+				    pthread_mutex_unlock( &mutex );
+					pthread_exit( NULL );
+	        	}
+
+	        	printf("Try again. Letter cannot be empty\n");
+
+	        }
+			fflush(stdin);
+	        buffer = 1;
+	        pthread_cond_signal( &cond_checkLetter );
+	        pthread_mutex_unlock( &mutex );
+
+    	} else {
+     		buffer = 1;
+	        pthread_cond_signal( &cond_checkLetter );
+	        pthread_mutex_unlock( &mutex );
+       		break;
+
+     	}
+    }
+
+    pthread_exit( NULL );
+
 }
+
+
+void* checkLetter(void* arg) {
+
+	int index = *(int *)arg;
+
+	char *word = my_words[index].word[my_words[index].index].word;
+	int row = my_words[index].word[my_words[index].index].row;
+	int col = my_words[index].word[my_words[index].index].col;
+	char direction = my_words[index].direction;
+	int size = strlen(word);
+
+    for ( int i=0; i<size; i++ ) {
+        pthread_mutex_lock( &mutex );
+        while (buffer == 0) {
+            pthread_cond_wait( &cond_checkLetter, &mutex );
+        }
+        if(scan == 1) {
+
+	        if(direction == 'H') {
+				if(isalpha(crossword[row][col+i])) {
+					guessed_letters++;
+					 buffer = 0;
+					continue;
+				}
+			} else {
+				if(isalpha(crossword[row+i][col])) {
+					guessed_letters++;
+					 buffer = 0;
+					continue;
+				}
+			}
+
+			if(direction == 'H') {
+				if(isdigit(crossword[row][col+i]) || crossword[row][col+i] == '*') {
+					if(my_char == solvedCrossword[row][col+i]){
+						guessed_letters++;
+						crossword[row][col+i] = my_char;
+						printCrossword(crossword);
+					}
+				}
+			} else {
+				if(isdigit(crossword[row+i][col]) || crossword[row+i][col] == '*') {
+					if(my_char == solvedCrossword[row+i][col]) {
+						guessed_letters++;
+						crossword[row+i][col] = my_char;
+						printCrossword(crossword);
+					}
+				}
+			}
+			buffer = 0;
+	        pthread_cond_signal( &cond_readLetter );
+	        pthread_mutex_unlock( &mutex );
+
+        } else {
+        	buffer = 0;
+	        pthread_cond_signal( &cond_readLetter );
+	        pthread_mutex_unlock( &mutex );
+        	break;
+        }
+    }
+    pthread_exit(NULL);
+}
+
+
+void *increase_counter(void *args) {
+
+	while (1) {
+		counter++;
+		sleep(1);
+
+		if (counter % WAIT_TIME == 0)
+			alarm(1);
+	}
+	pthread_exit(NULL);
+}
+
 
 void *defineWord(void *arg) {
 
@@ -265,12 +420,12 @@ void *defineWord(void *arg) {
 
     int i = *(int *)arg;
     char *words_file[NO_WORDS] = { "horizontal/first.txt",
-                            "horizontal/second.txt",
-                            "horizontal/third.txt",
-                            "vertical/first.txt",
-                            "vertical/second.txt",
-                            "vertical/third.txt"
-                          };
+	                            	"horizontal/second.txt",
+				                    "horizontal/third.txt",
+				                    "vertical/first.txt",
+				                    "vertical/second.txt",
+				                    "vertical/third.txt"
+				                };
 
     my_words[i].index = rand() % (2 + 1 - 0) + 0; // random word to appear
     my_words[i].locked = 0;
@@ -295,32 +450,70 @@ void *defineWord(void *arg) {
 }
 
 
-void initializeWords() {
-    pthread_t threads[NO_WORDS];
-    pthread_mutex_init( &mutex, 0 );
+void* readRule(void* arg) {
+	char *rules[NO_RULES] =
+		{
+			"1. In the crossword you will see a board with '-', '*', and numbers.",
+			"2. Each number represents a letter of a word.",
+			"3. A word is made up by the same number.",
+			"4. An intersection between words is written with '*'.",
+			"5. At the end of the crossword, the clues of the words are written.",
+			"6. You should enter a number between 1 and 6 according to the word you want to guess.",
+			"7. Once the word is selected, you should enter letter by letter the word",
+			"8. Look at the number of letter, since some letters will be already guessed, it won't be necessary to enter them again.",
+			"9. If you have guessed the right letter, the crossword, will update.",
+			"10. If your answer is worng, you'll continue guessing the other letters.",
+			"11. Look out for the time! After some seconds, words you haven't completely guessed will start to change.",
+			"12. Words can change in meaning and length, but the intersections will remain.",
+		};
 
-    int indices[NO_WORDS];
-    for (int i = 0; i < 6; i++) {
-        indices[i] = i;
-        pthread_create(&threads[i], NULL, defineWord, &indices[i]);
+    for ( int i=0; i<NO_RULES; i++ ) {
+
+        pthread_mutex_lock( &mutex );
+        while( rule != 0 ) {
+            pthread_cond_wait( &cond_readRule, &mutex );
+        }
+
+        printf("%s", rules[rule_counter]);
+        rule_counter++;
+        rule = 1;
+
+        pthread_cond_signal( &cond_checkRule );
+        pthread_mutex_unlock( &mutex );
     }
 
-    for (int i = 0; i < 6; i++) {
-        pthread_join(threads[i], NULL);
-    }
+    pthread_exit( NULL );
 
-    pthread_mutex_destroy( &mutex );
-    return;
+}
+
+
+void* checkRule(void* arg) {
+
+    for ( int i=0; i<NO_RULES; i++ ) {
+        pthread_mutex_lock( &mutex );
+        while (rule == 0) {
+            pthread_cond_wait( &cond_checkRule, &mutex );
+        }
+        getchar();
+        fflush(stdin);
+        rule = 0;
+
+        pthread_cond_signal( &cond_readRule );
+        pthread_mutex_unlock( &mutex );
+
+    }
+    pthread_exit(NULL);
+
 }
 
 
 // SIGNAL HANDLERS
 
 void change_word_handler(int signum) {
-	printf("\nTe tardaste mucho :(\nUna palabra cambiará\n");
 
-	kill(getpid(), SIGUSR1);
-	kill(getpid(), SIGUSR2);
+	scan = guessed_letters = 0;
+	printf("\nYou took too longue :(\nA word will change\n");
+
 
 	if (complete == 1){
 		return;
@@ -342,8 +535,10 @@ void change_word_handler(int signum) {
 		}
 	}
 
-	printCrossword(crossword);
-	printClues(my_words);
+	printf("\n Click ENTER to continue \n");
+	//printCrossword(crossword);
+	//printClues(my_words);
+
 }
 
 
@@ -351,7 +546,7 @@ void change_word_handler(int signum) {
 void sig_handler_sigint(int signum) {
 
 	while (1) {
-		printf("\nAre you sure you want to exit? [Y/n]");
+		printf("\nAre you sure you want to exit? [Y/n] ");
 		char confirm = getchar();
 		fflush(stdin);
 
@@ -365,10 +560,4 @@ void sig_handler_sigint(int signum) {
 
 		printf("\nYour answer could not be processed. Please try again\n");
 	}
-}
-
-
-void sig_handler_stop_reading(int signum) {
-	k = 10;
-	guessed_letters = 0;
 }
