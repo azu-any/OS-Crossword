@@ -382,6 +382,8 @@ void* checkLetter(void* arg) {
         }
         if(scan == 1) {
 
+        	my_char = tolower(my_char);
+
 	        if(direction == 'H') {
 				if(isalpha(crossword[row][col+i])) {
 					guessed_letters++;
