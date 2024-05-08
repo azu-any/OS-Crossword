@@ -45,7 +45,7 @@ typedef struct words {
 #define ROWS 15
 #define COLS 10
 #define NO_WORDS 6
-#define WAIT_TIME 45
+#define WAIT_TIME 30
 #define NO_RULES 12
 
 
@@ -162,19 +162,19 @@ void printCrossword(char crossword[ROWS][COLS]) {
 	for (int i = 0; i < ROWS; i++) {
 		for (int j = 0; j < COLS; j++) {
 			if(crossword[i][j] == '1'){
-				printf("\033[41m%c\t", crossword[i][j]);
+				printf("\033[41m%c\t\033[0m", crossword[i][j]);
 			} else if(crossword[i][j] == '2'){
-				printf("\033[42m%c\t", crossword[i][j]);
+				printf("\033[42m%c\t\033[0m", crossword[i][j]);
 			} else if(crossword[i][j] == '3'){
-				printf("\033[43m%c\t", crossword[i][j]);
+				printf("\033[43m%c\t\033[0m", crossword[i][j]);
 			} else if(crossword[i][j] == '4'){
-				printf("\033[44m%c\t", crossword[i][j]);
+				printf("\033[44m%c\t\033[0m", crossword[i][j]);
 			} else if(crossword[i][j] == '5'){
-				printf("\033[45m%c\t", crossword[i][j]);
+				printf("\033[45m%c\t\033[0m", crossword[i][j]);
 			} else if(crossword[i][j] == '6'){
-				printf("\033[46m%c\t", crossword[i][j]);
+				printf("\033[46m%c\t\033[0m", crossword[i][j]);
 			} else if(crossword[i][j] == '*'){
-				printf("\033[40m%c\t", crossword[i][j]);
+				printf("\033[40m%c\t\033[0m", crossword[i][j]);
 			} else if(crossword[i][j] != '-'){
 				printf("\033[47m\033[30m%c\t\033[37m", crossword[i][j]);
 			} else {
